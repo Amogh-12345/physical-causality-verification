@@ -134,7 +134,7 @@ This project is licensed under the **GNU Affero General Public License v3.0 (AGP
 You may use, modify, and distribute this software freely under AGPL terms. If you deploy this software as a network service, you must make your complete source code available under AGPL.
 
 **Commercial license available** for organisations that require proprietary deployment.
-Contact: [your email]
+Contact: 8amogh@gmail.com
 
 ---
 
