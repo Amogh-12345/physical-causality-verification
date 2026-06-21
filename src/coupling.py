@@ -10,6 +10,18 @@ def _twonn(data: np.ndarray) -> float:
     return skdim.id.TwoNN().fit(data).dimension_
 
 
+def _to_2d(read: np.ndarray) -> np.ndarray:
+    """
+    TwoNN requires minimum 2 features.
+    For marginal reads of shape (n, 1), duplicate the column to give (n, 2).
+    The intrinsic dimensionality estimate of a single signal is unchanged
+    by this duplication — both columns carry identical structure.
+    """
+    if read.shape[1] == 1:
+        return np.concatenate([read, read], axis=1)
+    return read
+
+
 def compute_marginals(noise_read: np.ndarray,
                       geometry_read: np.ndarray,
                       clock_read: np.ndarray) -> dict:
@@ -18,9 +30,9 @@ def compute_marginals(noise_read: np.ndarray,
     Each read must be shape (n, 1) with n >= MINIMUM_POINTS.
     """
     return {
-        "d_noise":    _twonn(noise_read),
-        "d_geometry": _twonn(geometry_read),
-        "d_clock":    _twonn(clock_read),
+        "d_noise":    _twonn(_to_2d(noise_read)),
+        "d_geometry": _twonn(_to_2d(geometry_read)),
+        "d_clock":    _twonn(_to_2d(clock_read)),
     }
 
 
