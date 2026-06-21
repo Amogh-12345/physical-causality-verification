@@ -1,0 +1,98 @@
+import numpy as np
+from coupling import MINIMUM_POINTS, compute_marginals, compute_gaps
+
+
+def binary_search(extract_fn, region, min_points=MINIMUM_POINTS):
+    """
+    Recursively localise the region where coupling collapses.
+
+    Parameters
+    ----------
+    extract_fn : callable
+        Takes a region descriptor and returns
+        (noise_read, geometry_read, clock_read) as (n,1) arrays.
+        Returns None if the region produces fewer than min_points.
+
+    region : any
+        Descriptor passed to extract_fn and subdivide_fn.
+        For images: (row_start, row_end, col_start, col_end)
+        For audio:  (sample_start, sample_end)
+        For video:  (frame_start, frame_end)
+
+    min_points : int
+        TwoNN reliability floor. Recursion stops here.
+
+    Returns
+    -------
+    dict with keys: location, joint_all_gap, magnitude
+    """
+    reads = extract_fn(region)
+    if reads is None:
+        return {"location": region, "joint_all_gap": None, "magnitude": None}
+
+    noise_read, geometry_read, clock_read = reads
+    marginals = compute_marginals(noise_read, geometry_read, clock_read)
+    gaps = compute_gaps(noise_read, geometry_read, clock_read, marginals)
+    joint_gap = gaps["joint_all_gap"]
+
+    subregions = _subdivide(region)
+    if subregions is None:
+        return {"location": region, "joint_all_gap": joint_gap, "magnitude": joint_gap}
+
+    sub_gaps = {}
+    for sub in subregions:
+        sub_reads = extract_fn(sub)
+        if sub_reads is None:
+            continue
+        n, g, c = sub_reads
+        m = compute_marginals(n, g, c)
+        sg = compute_gaps(n, g, c, m)
+        sub_gaps[_region_key(sub)] = (sg["joint_all_gap"], sub)
+
+    if not sub_gaps:
+        return {"location": region, "joint_all_gap": joint_gap, "magnitude": joint_gap}
+
+    worst_key = min(sub_gaps, key=lambda k: sub_gaps[k][0])
+    worst_gap, worst_region = sub_gaps[worst_key]
+
+    return binary_search(extract_fn, worst_region, min_points)
+
+
+def _subdivide(region):
+    """
+    Divide a region into four equal parts.
+    Detects region type by tuple length.
+    Images: (r0, r1, c0, c1) -> 4 quadrants
+    Audio:  (s0, s1)         -> 4 segments
+    Video:  (f0, f1)         -> 4 segments
+    Returns None if region is too small to subdivide meaningfully.
+    """
+    if len(region) == 4:
+        r0, r1, c0, c1 = region
+        rm = (r0 + r1) // 2
+        cm = (c0 + c1) // 2
+        if (rm - r0) < 2 or (cm - c0) < 2:
+            return None
+        return [
+            (r0, rm, c0, cm),
+            (r0, rm, cm, c1),
+            (rm, r1, c0, cm),
+            (rm, r1, cm, c1),
+        ]
+    elif len(region) == 2:
+        s0, s1 = region
+        length = s1 - s0
+        if length < 4:
+            return None
+        quarter = length // 4
+        return [
+            (s0,             s0 + quarter),
+            (s0 + quarter,   s0 + 2 * quarter),
+            (s0 + 2*quarter, s0 + 3 * quarter),
+            (s0 + 3*quarter, s1),
+        ]
+    return None
+
+
+def _region_key(region):
+    return "_".join(str(x) for x in region)
