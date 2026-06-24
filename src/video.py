@@ -1,3 +1,7 @@
+# EXPERIMENTAL — theoretical extension to video domain
+# Not yet empirically validated
+# See images.py for the validated implementation
+
 import numpy as np
 import cv2
 import ffmpeg
